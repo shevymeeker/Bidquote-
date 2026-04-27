@@ -1,0 +1,316 @@
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Owensboro Mowing Company - Estimate</title>
+  
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect } = React; 
+
+    const fmt = (n) => { 
+      const num = Number(n) || 0; 
+      return "$" + num.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ","); 
+    }; 
+
+    let _id = Date.now(); 
+    const uid = () => ++_id; 
+
+    const INIT_DATA = {
+      client: { name: "John Rutherford", address: "Ridge Rd", city: "Philpot, KY" },
+      meta: { num: "E42426", date: "04/27/2026", validUntil: "04/28/2026" },
+      notes: "This is an estimate only and is not a final invoice. Prices are subject to change.",
+      tasks: [
+        {
+          id: uid(),
+          title: "Landscape Beds Cleanup",
+          items: [
+            { id: uid(), type: "Material", desc: "Chemical Treatment", rate: 125, qty: 1 },
+            { id: uid(), type: "Labor", desc: "Vine & Shrub Removal", rate: 85, qty: 8 }
+          ]
+        }
+      ]
+    };
+
+    function Field({ value, onChange, type = "text", align = "left", color = "#1a1a1a", multiline = false, fontSize = 13, bold = false }) { 
+      const [focus, setFocus] = useState(false); 
+      
+      const base = { 
+        background: "transparent", 
+        border: focus ? "1px solid #3d6b35" : "1px solid transparent", 
+        borderRadius: 2, 
+        outline: "none", 
+        fontFamily: "inherit", 
+        fontSize, 
+        color, 
+        fontWeight: bold ? 700 : 400,
+        textAlign: align, 
+        padding: "2px 4px", 
+        width: "100%", 
+      }; 
+      
+      if (multiline) { 
+        return ( 
+          <textarea 
+            value={value} 
+            onChange={e => onChange(e.target.value)} 
+            onFocus={() => setFocus(true)} 
+            onBlur={() => setFocus(false)} 
+            style={{ ...base, resize: "none", lineHeight: 1.5 }} 
+            rows={2} 
+          /> 
+        ); 
+      } 
+      
+      return ( 
+        <input 
+          type={type} 
+          value={value} 
+          onChange={e => onChange(type === "number" ? (parseFloat(e.target.value) || 0) : e.target.value)} 
+          onFocus={() => setFocus(true)} 
+          onBlur={() => setFocus(false)} 
+          style={base} 
+        /> 
+      ); 
+    } 
+
+    function App() { 
+      const [data, setData] = useState(() => {
+        const saved = localStorage.getItem("omc_est_data_v2");
+        return saved ? JSON.parse(saved) : INIT_DATA;
+      });
+
+      useEffect(() => {
+        localStorage.setItem("omc_est_data_v2", JSON.stringify(data));
+      }, [data]);
+      
+      const updateClient = (f, v) => setData(d => ({ ...d, client: { ...d.client, [f]: v } })); 
+      const updateMeta = (f, v) => setData(d => ({ ...d, meta: { ...d.meta, [f]: v } })); 
+      const updateNotes = v => setData(d => ({ ...d, notes: v })); 
+
+      const clearAllTasks = () => setData(d => ({ ...d, tasks: [] }));
+      
+      const addTask = () => setData(d => ({ 
+        ...d, 
+        tasks: [...d.tasks, { id: uid(), title: "New Area / Task", items: [] }] 
+      }));
+
+      const removeTask = (tid) => setData(d => ({ 
+        ...d, 
+        tasks: d.tasks.filter(t => t.id !== tid) 
+      }));
+
+      const updateTaskTitle = (tid, v) => setData(d => ({
+        ...d,
+        tasks: d.tasks.map(t => t.id === tid ? { ...t, title: v } : t)
+      }));
+
+      const addTaskItem = (tid, type) => setData(d => ({
+        ...d,
+        tasks: d.tasks.map(t => t.id === tid ? { 
+          ...t, 
+          items: [...t.items, { id: uid(), type, desc: `New ${type}`, rate: 0, qty: 1 }] 
+        } : t)
+      }));
+
+      const removeTaskItem = (tid, iid) => setData(d => ({
+        ...d,
+        tasks: d.tasks.map(t => t.id === tid ? {
+          ...t,
+          items: t.items.filter(i => i.id !== iid)
+        } : t)
+      }));
+
+      const updateItem = (tid, iid, field, val) => setData(d => ({
+        ...d,
+        tasks: d.tasks.map(t => t.id === tid ? {
+          ...t,
+          items: t.items.map(i => i.id === iid ? { ...i, [field]: val } : i)
+        } : t)
+      }));
+      
+      const calcTaskTotal = items => items.reduce((sum, i) => sum + (i.rate * i.qty), 0);
+      const subtotal = data.tasks.reduce((sum, t) => sum + calcTaskTotal(t.items), 0); 
+      const taxAmount = subtotal * 0.06;
+      const grandTotal = subtotal + taxAmount;
+      
+      return ( 
+        <> 
+          <style>{` 
+            @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=Barlow:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap'); 
+            * { box-sizing: border-box; margin: 0; padding: 0; } 
+            body { background: #d6d0c6; font-family: 'Barlow', sans-serif; } 
+            .wrap { max-width: 880px; margin: 24px auto; background: #fff; box-shadow: 0 8px 52px rgba(0,0,0,0.24); } 
+            .toolbar { background: #101e10; padding: 9px 32px; display: flex; justify-content: flex-end; gap: 12px; } 
+            .tbtn { font-family: 'Barlow Condensed', sans-serif; font-size: 11.5px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; background: #3a6430; border: none; color: #fff; padding: 7px 20px; cursor: pointer; border-radius: 2px; } 
+            .tbtn.wipe { background: #8b3a30; }
+            .doc-head { background: #fff; padding: 32px; display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid #192818; } 
+            .logo-wrap { width: 140px; }
+            .logo-wrap img { width: 100%; height: auto; display: block; }
+            .co-details { font-family: 'Barlow Condensed', sans-serif; text-align: right; }
+            .co-name { font-size: 28px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; color: #192818; line-height: 1; margin-bottom: 8px; } 
+            .co-lines { font-family: 'DM Mono', monospace; font-size: 11px; color: #555; line-height: 1.6; }
+            .title-strip { background: #f3f0e9; padding: 18px 32px; border-bottom: 1px solid #ece6d8; display: flex; justify-content: space-between; align-items: flex-start; } 
+            .est-word { font-family: 'Barlow Condensed', sans-serif; font-size: 58px; font-weight: 800; color: #192818; line-height: 1; text-transform: uppercase; } 
+            .meta-block { font-family: 'DM Mono', monospace; font-size: 12px; color: #555; text-align: right; line-height: 2.2; } 
+            .meta-label { font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase; color: #aaa; margin-right: 5px; } 
+            .client-row { padding: 20px 32px; border-bottom: 1px solid #ece6d8; } 
+            .sec-label { font-family: 'Barlow Condensed', sans-serif; font-size: 9px; font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase; color: #3a6430; margin-bottom: 6px; } 
+            .client-fields { font-size: 13.5px; line-height: 1.95; } 
+            .task-block { border-bottom: 2px solid #192818; padding-bottom: 16px; margin-bottom: 16px; page-break-inside: avoid; } 
+            .task-head { padding: 16px 32px 8px; display: flex; justify-content: space-between; align-items: center; } 
+            .task-body { padding: 0 32px; }
+            .tbl-head { display: grid; grid-template-columns: 80px 1fr 100px 80px 100px 24px; border-bottom: 1px solid #ece6d8; margin-bottom: 4px; padding-bottom: 4px; } 
+            .th { font-family: 'Barlow Condensed', sans-serif; font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #888; } 
+            .th.r { text-align: right; } 
+            .item-row { display: grid; grid-template-columns: 80px 1fr 100px 80px 100px 24px; align-items: center; min-height: 36px; } 
+            .td-type { font-family: 'Barlow Condensed', sans-serif; font-size: 10px; font-weight: 700; text-transform: uppercase; color: #3a6430; }
+            .item-detail { padding-left: 24px; font-size: 10px; color: #aaa; } 
+            .del { background: none; border: none; color: #d0cbc0; cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; } 
+            .add-bar { padding: 12px 0; display: flex; gap: 8px; } 
+            .add-btn { font-family: 'Barlow Condensed', sans-serif; font-size: 10px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; background: #faf8f3; border: 1px solid #ece6d8; color: #555; padding: 4px 12px; cursor: pointer; border-radius: 2px; } 
+            .task-sub { display: flex; justify-content: flex-end; align-items: center; padding-top: 12px; gap: 24px; } 
+            .task-sub-label { font-family: 'Barlow Condensed', sans-serif; font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #777; } 
+            .task-sub-amt { font-family: 'DM Mono', monospace; font-size: 14px; color: #192818; font-weight: 500; min-width: 95px; text-align: right; } 
+            .global-add { padding: 0 32px 32px; }
+            .totals-wrap { padding: 22px 32px; display: flex; justify-content: flex-end; background: #f9f8f6; border-top: 1px solid #ece6d8; } 
+            .totals { min-width: 300px; } 
+            .tline { display: flex; justify-content: space-between; padding: 6px 0; font-family: 'DM Mono', monospace; font-size: 13px; color: #555; } 
+            .tline.grand { border-top: 2px solid #192818; margin-top: 8px; padding-top: 12px; font-size: 18px; color: #192818; font-weight: 500; } 
+            .tlabel { font-family: 'Barlow Condensed', sans-serif; font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; } 
+            .tline.grand .tlabel { font-size: 15px; } 
+            .tamt { text-align: right; min-width: 100px; } 
+            .notes { padding: 24px 32px; background: #fff; } 
+            @media print { 
+              @page { size: letter; margin: 0.4in; }
+              body { background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; } 
+              .no-print { display: none !important; } 
+              .wrap { box-shadow: none; margin: 0; max-width: 100%; } 
+              input, textarea { border: none !important; } 
+              .task-block { border-bottom: 1px solid #ece6d8; }
+            } 
+          `}</style> 
+          <div style={{ padding: "24px 0 48px", background: "#d6d0c6", minHeight: "100vh" }} className="print-bg"> 
+            <div className="wrap"> 
+              <div className="toolbar no-print"> 
+                <button className="tbtn wipe" onClick={clearAllTasks}>Clear All Line Items</button>
+                <button className="tbtn" onClick={() => window.print()}>Print / Save PDF</button> 
+              </div> 
+              <div className="doc-head"> 
+                <div className="logo-wrap">
+                  <img src="logo.png" alt="Owensboro Mowing Company" />
+                </div>
+                <div className="co-details"> 
+                  <div className="co-name">Owensboro Mowing Company</div> 
+                  <div className="co-lines">
+                    <div>270.499.7758</div>
+                    <div>712 Crabtree · Owensboro, Ky</div>
+                    <div>owensboromowingcompany.com</div>
+                    <div>askshevy@outlook.com</div>
+                  </div>
+                </div> 
+              </div> 
+              <div className="title-strip"> 
+                <div className="est-word">Estimate</div> 
+                <div className="meta-block"> 
+                  <div><span className="meta-label">Estimate #</span><Field value={data.meta.num} onChange={v => updateMeta("num", v)} fontSize={12} /></div> 
+                  <div><span className="meta-label">Date</span><Field value={data.meta.date} onChange={v => updateMeta("date", v)} fontSize={12} /></div> 
+                  <div><span className="meta-label">Valid Until</span><Field value={data.meta.validUntil} onChange={v => updateMeta("validUntil", v)} fontSize={12} /></div> 
+                </div> 
+              </div> 
+              <div className="client-row"> 
+                <div className="sec-label">Prepared For</div> 
+                <div className="client-fields"> 
+                  <Field value={data.client.name} onChange={v => updateClient("name", v)} /> 
+                  <Field value={data.client.address} onChange={v => updateClient("address", v)} /> 
+                  <Field value={data.client.city} onChange={v => updateClient("city", v)} /> 
+                </div> 
+              </div> 
+
+              {data.tasks.map(task => { 
+                const tTotal = calcTaskTotal(task.items); 
+                return ( 
+                  <div key={task.id} className="task-block"> 
+                    <div className="task-head"> 
+                      <div style={{ flex: 1 }}>
+                        <Field value={task.title} onChange={v => updateTaskTitle(task.id, v)} fontSize={18} bold={true} color="#192818" /> 
+                      </div>
+                      <button className="del no-print" onClick={() => removeTask(task.id)} title="Remove entire line item">×</button> 
+                    </div> 
+                    <div className="task-body"> 
+                      <div className="tbl-head"> 
+                        <div className="th">Type</div>
+                        <div className="th">Description</div> 
+                        <div className="th r">Price / Rate</div> 
+                        <div className="th r">Qty / Hrs</div> 
+                        <div className="th r">Total</div> 
+                        <div className="th"></div> 
+                      </div> 
+                      {task.items.map(item => ( 
+                        <div key={item.id} className="item-row"> 
+                          <div className="td-type">{item.type}</div>
+                          <div><Field value={item.desc} onChange={v => updateItem(task.id, item.id, "desc", v)} /></div> 
+                          <div><Field value={item.rate} onChange={v => updateItem(task.id, item.id, "rate", parseFloat(v) || 0)} type="number" align="right" /></div> 
+                          <div><Field value={item.qty} onChange={v => updateItem(task.id, item.id, "qty", parseFloat(v) || 0)} type="number" align="right" /></div> 
+                          <div style={{ fontFamily: "'DM Mono', monospace", fontSize: "13px", textAlign: "right" }}>{fmt(item.rate * item.qty)}</div> 
+                          <div><button className="del no-print" onClick={() => removeTaskItem(task.id, item.id)}>×</button></div> 
+                        </div> 
+                      ))} 
+                      <div className="add-bar no-print"> 
+                        <button className="add-btn" onClick={() => addTaskItem(task.id, "Material")}>+ Add Material</button> 
+                        <button className="add-btn" onClick={() => addTaskItem(task.id, "Labor")}>+ Add Labor</button> 
+                      </div> 
+                      <div className="task-sub"> 
+                        <span className="task-sub-label">Line Item Subtotal</span> 
+                        <span className="task-sub-amt">{fmt(tTotal)}</span> 
+                      </div> 
+                    </div> 
+                  </div> 
+                ); 
+              })} 
+
+              <div className="global-add no-print">
+                <button className="tbtn" style={{ background: "#192818" }} onClick={addTask}>+ Create New Line Item</button>
+              </div>
+
+              <div className="totals-wrap"> 
+                <div className="totals"> 
+                  <div className="tline"> 
+                    <span className="tlabel">Subtotal</span> 
+                    <span className="tamt">{fmt(subtotal)}</span> 
+                  </div> 
+                  <div className="tline"> 
+                    <span className="tlabel">Tax (6%)</span> 
+                    <span className="tamt">{fmt(taxAmount)}</span> 
+                  </div> 
+                  <div className="tline grand"> 
+                    <span className="tlabel">Project Total</span> 
+                    <span className="tamt">{fmt(grandTotal)}</span> 
+                  </div> 
+                </div> 
+              </div> 
+              <div className="notes"> 
+                <Field value={data.notes} onChange={updateNotes} color="#888" fontSize={12} multiline /> 
+              </div> 
+            </div> 
+          </div> 
+        </> 
+      ); 
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
+
+
+```
